@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unity WebGL Player | SPIDERHECK_Port</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+      #unity-canvas { display: block; position: fixed; inset: 0; width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <canvas id="unity-canvas" width=960 height=600 style="background: #000000"></canvas>
+    <script>
+      window.PEERJS_HOST = window.PEERJS_HOST || undefined;
+      window.PEERJS_PORT = window.PEERJS_PORT || undefined;
+      window.PEERJS_PATH = window.PEERJS_PATH || undefined;
+      window.PEERJS_KEY = window.PEERJS_KEY || undefined;
+    </script>
+    <script src="StreamingAssets/peerjs.min.js"></script>
+    <script src="StreamingAssets/peer.js"></script>
+    <script src="Build/e9dadf13d3d2ec49cc33413f986a95cb.js"></script>
+    <script>
+      createUnityInstance(document.querySelector("#unity-canvas"), {
+        matchWebGLToCanvasSize: true,
+        dataUrl: "Build/97322097560fb12e169a9269cf77662b.data",
+        frameworkUrl: "Build/c2408ffaec96ab27b03213ae316f2d59.js",
+        codeUrl: "Build/39757f7f0af365aa196501a7cee93037.wasm",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "Neverjam Studio / Lex",
+        productName: "SPIDERHECK_Port",
+        productVersion: " 1.0 Port of Heck"
+      }).then(function (instance) {
+        window.unityInstance = instance;
+      }).catch(function (error) {
+        console.error("Unity failed to initialize:", error);
+      });
+    </script>
+  </body>
+</html>

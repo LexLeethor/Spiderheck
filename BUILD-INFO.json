@@ -1,0 +1,256 @@
+{
+  "builtAtUtc": "2026-10-06T02:45:26.607083+00:00",
+  "packagedAtUtc": "2026-10-06T02:58:27.085490+00:00",
+  "sourceRevision": "ec21e55d1108f3bad84c2189ec91a2fb5fc64db5",
+  "includesExistingWorkspaceChanges": [
+    "Assets/Resources/shaders/TMPro.cginc",
+    "Assets/Resources/shaders/TMPro_Mobile.cginc",
+    "Assets/Resources/shaders/TMPro_Properties.cginc",
+    "Assets/Resources/shaders/TMPro_Surface.cginc",
+    "Assets/Scenes/Lobby.unity",
+    "Assets/Scripts/Assembly-CSharp/DecompiledGame/ControllerDisconnectPopup.cs",
+    "Assets/Scripts/Assembly-CSharp/DecompiledGame/CustomizationMenu.cs",
+    "Assets/Scripts/Assembly-CSharp/OfflinePlatformInitializer.cs",
+    "ProjectSettings/ProjectSettings.asset"
+  ],
+  "workspaceInputHashes": {
+    "Assets/Resources/shaders/TMPro.cginc": {
+      "bytes": 2277,
+      "sha256": "14edb7d7b88caf2b82cae68200abe895e5b5b3474c3fffbf0e9b4b09a4e2467e"
+    },
+    "Assets/Resources/shaders/TMPro_Mobile.cginc": {
+      "bytes": 5311,
+      "sha256": "31aa22debdf974d1dc73e90b7feadf7f2e37ad60cf6f9f9e54a6adc71cd792b5"
+    },
+    "Assets/Resources/shaders/TMPro_Properties.cginc": {
+      "bytes": 2843,
+      "sha256": "26c70831a9bdd6a56a37ec1e2358929453d66a064d10a61da49a1d4b05280e06"
+    },
+    "Assets/Resources/shaders/TMPro_Surface.cginc": {
+      "bytes": 3563,
+      "sha256": "434adb97dfcd9d5772fc11bb3a76f36af13614a664aca840ebcbf635e6e2df24"
+    },
+    "Assets/Scenes/Lobby.unity": {
+      "bytes": 13888493,
+      "sha256": "cf50c2e2896100b3996dae97c1d5db1982e640a21ff158f0b75ef236576607d9"
+    },
+    "Assets/Scripts/Assembly-CSharp/DecompiledGame/ControllerDisconnectPopup.cs": {
+      "bytes": 2105,
+      "sha256": "d5c5766bc1413ecc3580d6b6caed0a238da35b0ca6a74525313336c67203c3c2"
+    },
+    "Assets/Scripts/Assembly-CSharp/DecompiledGame/CustomizationMenu.cs": {
+      "bytes": 14007,
+      "sha256": "fbddf0ee820a00d9df1ab087d053b6cf95e966c8611ea31e1ed86d7c40bd393e"
+    },
+    "Assets/Scripts/Assembly-CSharp/OfflinePlatformInitializer.cs": {
+      "bytes": 7526,
+      "sha256": "ac6d5c324c76aebe49a09b553585d10f04447a67e3c4fe8310396b31fbd9f4b6"
+    },
+    "ProjectSettings/ProjectSettings.asset": {
+      "bytes": 18399,
+      "sha256": "fc1d94511b0aa8b2ef0d92872491a87536e451c15cc2027133eaba1e85a46775"
+    }
+  },
+  "unityVersion": "2020.3.36f1",
+  "development": false,
+  "codeOptimization": "Speed",
+  "il2cppCompilerConfiguration": "Master",
+  "finalLinkOptimization": "-O3",
+  "frameScheduling": "Browser animation frames (targetFrameRate=-1), independently saved Browser/30/60 cap",
+  "graphicsDefault": "Medium",
+  "graphicsPresets": [
+    "Low",
+    "Medium",
+    "High",
+    "Custom"
+  ],
+  "graphicsOptions": [
+    "Shadows",
+    "Effects",
+    "Cosmetic particles",
+    "Textures",
+    "Blood Splats"
+  ],
+  "webGLHeapBytes": 1073741824,
+  "webGLMemoryGrowth": false,
+  "webGLHeapReason": "Fixed 512 MiB failed before Lobby; the previous working release also reaches 1 GiB at startup.",
+  "compression": "Disabled (uncompressed files)",
+  "archiveCompression": "Stored (0)",
+  "repackaging": {
+    "compression": "Disabled",
+    "method": "Lossless gzip decompression of the verified optimized player; HTML references updated. Compiled WASM/data/framework bytes unchanged.",
+    "files": {
+      "39757f7f0af365aa196501a7cee93037.wasm": {
+        "bytes": 44212097,
+        "sha256": "2f96022bd270dd3ff3d8068c090a35cb6748abac3a9af4405104d54f67b45dea",
+        "originalName": "39757f7f0af365aa196501a7cee93037.wasm.gz",
+        "originalSha256": "e4c76882f2b1d1ad68e98f13fa516bc1c2f94b09531b003b6c44d7576ca86f53"
+      },
+      "97322097560fb12e169a9269cf77662b.data": {
+        "bytes": 148314388,
+        "sha256": "9bce6c0cd8cd673a85accfe6abb151063ef0ff83edc6cb552226d9ac6ff8ee05",
+        "originalName": "97322097560fb12e169a9269cf77662b.data.gz",
+        "originalSha256": "8651e6832d48aef4cd4c6e647dd1de557f6bcfc7d7e3b93418ca956719318c2a"
+      },
+      "c2408ffaec96ab27b03213ae316f2d59.js": {
+        "bytes": 611488,
+        "sha256": "ca47ab4f668bd217d69cb63906e2f5ef047bf5d1fdd092b11efe6ef84752fe47",
+        "originalName": "c2408ffaec96ab27b03213ae316f2d59.js.gz",
+        "originalSha256": "25b3cfbe7aabaf1adce35ee312014512f6655cbad5f4d77fc5c189e4d63eb754"
+      },
+      "e9dadf13d3d2ec49cc33413f986a95cb.js": {
+        "bytes": 16553,
+        "sha256": "3dd8287b79bccf25d882dba50849b2725bc5f6d8b391bc1ad3937d65217718b6",
+        "originalName": "e9dadf13d3d2ec49cc33413f986a95cb.js",
+        "originalSha256": "3dd8287b79bccf25d882dba50849b2725bc5f6d8b391bc1ad3937d65217718b6"
+      }
+    }
+  },
+  "decompressionFallback": false,
+  "dataCaching": true,
+  "hashedFilenames": true,
+  "exceptions": "FullWithoutStacktrace",
+  "managedStripping": "Low",
+  "knownLimitations": [
+    "The previously observed reconnect-after-AFK-kick issue remains; it is not addressed by release optimization."
+  ],
+  "buildSummary": "WEBGL_RELEASE result=Succeeded errors=0 warnings=252 seconds=579.8716647 optimization=Speed compiler=Master compression=Gzip heapMiB=1024 memoryGrowth=false development=false output=G:\\AI Projects\\AlexsGame\\ExportedProject\\Temp\\GraphicsRelease",
+  "decodedArtifactBytes": {
+    "39757f7f0af365aa196501a7cee93037.wasm": 44212097,
+    "97322097560fb12e169a9269cf77662b.data": 148314388,
+    "c2408ffaec96ab27b03213ae316f2d59.js": 611488,
+    "e9dadf13d3d2ec49cc33413f986a95cb.js": 16553
+  },
+  "browserValidationConfirmedByCaller": true,
+  "browserEvidence": {
+    "path": "Temp/GraphicsChecks/browser-final.json",
+    "bytes": 1404,
+    "sha256": "b610714f9ae372f0d125347db5c72e49effaf407ef4d279999b3c6a79f29a1ff",
+    "receipt": {
+      "testedAt": "2026-10-06T02:54:59.874Z",
+      "build": "final1024",
+      "sourceRevision": "505768f",
+      "freshSaveDefault": "Medium",
+      "presets": [
+        "Low",
+        "Medium",
+        "High",
+        "Custom"
+      ],
+      "independentOptionsVerified": true,
+      "independentOptionChecks": "All five controls and custom half-texture reload verified on preceding build; final build changes menu wiring only.",
+      "savedCustomReloadVerified": true,
+      "frameCapsMeasured": [
+        60,
+        30
+      ],
+      "frameCapSurvivesReload": true,
+      "heapMiB": 1024,
+      "mouseGraphicsEntry": true,
+      "mouseBack": true,
+      "escapeBack": true,
+      "keyboardNavigationPastGraphicsAndDisabledVSync": true,
+      "arrowAnimationRemainsAligned": true,
+      "browserWarningsAndErrors": [],
+      "notTested": [
+        "Physical gamepad buttons",
+        "Long Wave-session memory stress",
+        "Full multiplayer regression"
+      ],
+      "releaseRecipeRevision": "ec21e55",
+      "compression": "Disabled",
+      "uncompressedStartupVerified": true,
+      "uncompressedStartupWarningsAndErrors": [],
+      "uncompressedRetestAt": "2026-10-06T02:58:16.270Z",
+      "fullViewportCanvas": {
+        "verified": true,
+        "resizeVerified": true,
+        "final": {
+          "backing": [
+            2663,
+            809
+          ],
+          "canvas": [
+            0,
+            0,
+            2420.908935546875,
+            735.4545288085938
+          ],
+          "dpr": 1.100000023841858,
+          "viewport": [
+            2421,
+            735
+          ]
+        }
+      }
+    }
+  },
+  "files": {
+    "Build/39757f7f0af365aa196501a7cee93037.wasm": {
+      "bytes": 44212097,
+      "sha256": "2f96022bd270dd3ff3d8068c090a35cb6748abac3a9af4405104d54f67b45dea"
+    },
+    "Build/97322097560fb12e169a9269cf77662b.data": {
+      "bytes": 148314388,
+      "sha256": "9bce6c0cd8cd673a85accfe6abb151063ef0ff83edc6cb552226d9ac6ff8ee05"
+    },
+    "Build/c2408ffaec96ab27b03213ae316f2d59.js": {
+      "bytes": 611488,
+      "sha256": "ca47ab4f668bd217d69cb63906e2f5ef047bf5d1fdd092b11efe6ef84752fe47"
+    },
+    "Build/e9dadf13d3d2ec49cc33413f986a95cb.js": {
+      "bytes": 16553,
+      "sha256": "3dd8287b79bccf25d882dba50849b2725bc5f6d8b391bc1ad3937d65217718b6"
+    },
+    "index.html": {
+      "bytes": 1801,
+      "sha256": "4c75e066788c91e2c51d4b973eb1aee10505c4055cf68fb80b14794b12a25ab2"
+    },
+    "PLAY.txt": {
+      "bytes": 211,
+      "sha256": "a26d99e1148c8d7a6ec3b0eb86d904ec4d7a32bb9ef5a099e2cb3f4cbfc33299"
+    },
+    "StreamingAssets/peer.js": {
+      "bytes": 18877,
+      "sha256": "a44ced73f022e769a5a67fecc6edda644a3310004e16d66a67dc0a7daf2371bc"
+    },
+    "StreamingAssets/peerjs.min.js": {
+      "bytes": 458,
+      "sha256": "2ebb2f2e2f1378e0fe7c4c59b91bfa4a66725a2ae5c0931c0cc8c5340508eee7"
+    },
+    "StreamingAssets/PS4SessionImage.jpg": {
+      "bytes": 18012,
+      "sha256": "c3dc074a4179544aa137511cbc6ad823188ebfa8f699cbdbd98172863d112f3f"
+    },
+    "StreamingAssets/Readme.txt": {
+      "bytes": 402,
+      "sha256": "cd4299a0bdf91163139cac21b9ea7160e2d4d94d9f73de26a610ee4bb675d67b"
+    },
+    "StreamingAssets/SaveIcon.png": {
+      "bytes": 5285,
+      "sha256": "cb228c55fc8b82801475a44f12b3ccb715c98b599ad374c0118b458b4b7d892b"
+    },
+    "StreamingAssets/SaveIconPS5.png": {
+      "bytes": 14343,
+      "sha256": "3125fda4103226f7651c08ef1ded4c0e3410e11dd17c3a4cd4480dca68ecb306"
+    },
+    "template.json": {
+      "bytes": 50,
+      "sha256": "a61cba838ef32391ac5fb5a798e1d6fb7cff261c945c0659c52724034d8ec036"
+    },
+    "Tools/serve_webgl.py": {
+      "bytes": 2785,
+      "sha256": "14a00f5a789f0ed6c2733c5e4dff0a2bcb29f6cf0436a739180320990c646d8b"
+    },
+    "Tools/WEBGL_RELEASE.md": {
+      "bytes": 5893,
+      "sha256": "d8757fc2dcb2c58f4dc49c5b3632a4beddd2b86394d4b2b60396804a922788f9"
+    }
+  },
+  "updatedAtUtc": "2026-10-06T03:04:55.927593+00:00",
+  "canvas": "Full browser viewport; automatically resizes rendering buffer to display size and device pixel ratio.",
+  "webGLTemplateHash": {
+    "bytes": 2068,
+    "sha256": "1cc6662a32f3539dde0b29cb61692062ffff48cea892250e99a30f05b3620af8"
+  }
+}
