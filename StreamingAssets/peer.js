@@ -8,6 +8,14 @@
   var peerOptions = {}, roomUpdateTimer = null, targetPeerId = '';
   var session = 0, clientJoined = false, libraryWaitStartedAt = 0;
   var endingSession = false, hostDisconnectNotified = false, pendingEndAcks = Object.create(null);
+  // Link health: peers on flaky networks can starve without the channel ever
+  // closing. Every link carries heartbeats so a silent peer is detected within
+  // RESPONSE_TIMEOUT_MS and its ghost spider can be removed. A link that stops
+  // delivering packets for WAITING_AFTER_MS reports its player as waiting first,
+  // so the waiting circle can show above their head before the final drop.
+  var HEARTBEAT_MS = 1000, LINK_STALL_MS = 6500, RESPONSE_TIMEOUT_MS = 15000;
+  var WAITING_AFTER_MS = 3000;
+  var heartbeatTimer = null, linkStatusReported = true;
 
   // Every callback belongs to one session; closed sessions must not restart or alter a later join.
   function defer(callback, delay) {
@@ -20,6 +28,115 @@
     if (hostDisconnectNotified) return;
     hostDisconnectNotified = true;
     unity('OnPeerDisconnected', id);
+  }
+  function notifySessionEnded(id) {
+    // A deliberate host end is final: the lobby is gone, so no reconnection offer.
+    if (hostDisconnectNotified) return;
+    hostDisconnectNotified = true;
+    unity('OnPeerSessionEnded', id);
+  }
+
+  // --- link health -------------------------------------------------------
+  function trackLink(connection) {
+    connection.__hb = { lastHeard: Date.now(), lastBeat: 0, waiting: false };
+    return connection;
+  }
+  function reportLinkWaiting(connection, waiting) {
+    // Only gameplay links drive the waiting circle; mesh links exist for migration.
+    var record = connection && connection.__hb;
+    if (!record || record.waiting === waiting) return;
+    record.waiting = waiting;
+    unity('OnPeerLinkStale', connection.peer + '|' + (waiting ? '1' : '0'));
+  }
+  function heardLink(connection) {
+    if (connection && connection.__hb) {
+      connection.__hb.lastHeard = Date.now();
+      reportLinkWaiting(connection, false);
+    }
+    updateLinkStatus();
+  }
+  function linkSilent(connection) {
+    var record = connection && connection.__hb;
+    return !connection || !connection.open || !record || Date.now() - record.lastHeard > LINK_STALL_MS;
+  }
+  function eachLink(visitor) {
+    Object.keys(clients).forEach(function (id) { visitor(clients[id], 'client', id); });
+    if (toHost) visitor(toHost, 'host', toHost.peer);
+    Object.keys(mesh).forEach(function (id) { visitor(mesh[id], 'mesh', id); });
+  }
+  function updateLinkStatus() {
+    // Only gameplay links drive the indicator; mesh links exist for migration.
+    // A link that never opened is still joining and does not count either way.
+    var healthy = true;
+    eachLink(function (connection, role) {
+      if (role === 'mesh' || !connection || !connection.open) return;
+      if (linkSilent(connection)) healthy = false;
+    });
+    if (healthy === linkStatusReported) return;
+    linkStatusReported = healthy;
+    unity('OnPeerLinkStatus', healthy ? '1' : '0');
+  }
+  function isHeartbeat(data) {
+    if (typeof data !== 'string') return false;
+    var control;
+    try { control = JSON.parse(data); } catch (_) { return false; }
+    return !!control && control.type === 'hb';
+  }
+  function sendHeartbeat(connection) {
+    try { connection.send(JSON.stringify({ type: 'hb' })); } catch (_) {}
+  }
+  function sendHeartbeatAck(connection) {
+    try { connection.send(JSON.stringify({ type: 'hb-ack' })); } catch (_) {}
+  }
+  function heartbeatTick() {
+    heartbeatTimer = null;
+    var now = Date.now();
+    eachLink(function (connection, role, id) {
+      if (!connection || !connection.open) return;
+      var record = connection.__hb;
+      if (!record) { record = connection.__hb = { lastHeard: now, lastBeat: 0, waiting: false }; }
+      if (now - record.lastHeard >= RESPONSE_TIMEOUT_MS) { dropSilentLink(connection, role, id); return; }
+      if (now - record.lastBeat >= HEARTBEAT_MS) { record.lastBeat = now; sendHeartbeat(connection); }
+      if (role !== 'mesh') reportLinkWaiting(connection, now - record.lastHeard >= WAITING_AFTER_MS);
+    });
+    updateLinkStatus();
+    scheduleHeartbeat();
+  }
+  function scheduleHeartbeat() {
+    if (heartbeatTimer || closing || endingSession) return;
+    heartbeatTimer = defer(heartbeatTick, 1000);
+  }
+  function dropSilentLink(connection, role, id) {
+    // Remove the map entry first so the close event cannot double-report.
+    if (role === 'client') {
+      if (clients[id] === connection) delete clients[id];
+      try { connection.close(); } catch (_) {}
+      // Forgetting the client here lets NGO despawn its ghost spider. The same
+      // peer is welcome back: acceptClient takes its fresh channel in again.
+      unity('OnPeerDisconnected', id);
+      broadcastMesh();
+    } else if (role === 'mesh') {
+      if (mesh[id] === connection) delete mesh[id];
+      try { connection.close(); } catch (_) {}
+      if (!isHost && !migrating && (!toHost || !toHost.open)) hostLinkLost(id, toHost);
+    } else {
+      if (toHost === connection) toHost = null;
+      try { connection.close(); } catch (_) {}
+      hostLinkLost(id, connection);
+    }
+  }
+  function hostLinkLost(hostId, connection) {
+    if (isHost || migrating || endingSession || hostDisconnectNotified) return;
+    var record = connection && connection.__hb;
+    // A channel that closes while traffic still flowed means the host ended the
+    // link (or is gone): keep the original host election. A starving link is
+    // more likely this machine's flaky network, so drop the session cleanly and
+    // let Unity keep retrying the same lobby until it is accepted again.
+    if (clientJoined && record && Date.now() - record.lastHeard <= LINK_STALL_MS) { electHost(); return; }
+    if (clientJoined) {
+      hostDisconnectNotified = true;
+      unity('OnPeerConnectionLost', hostId);
+    } else notifyHostDisconnected(hostId);
   }
 
   function unity(method, value) {
@@ -92,13 +209,17 @@
     catch (error) { reportError(error); return; }
     if (!connection) { reportError('PeerJS could not create a mesh connection.'); return; }
     mesh[id] = connection;
+    trackLink(connection);
     function active() { return isCurrent(owner, source) && mesh[id] === connection; }
     connection.on('open', function () {
       if (!active()) return;
+      heardLink(connection);
       if (migrating && targetPeerId && peer.id === targetPeerId) startMigrationHost();
     });
     connection.on('data', function (data) {
       if (!active()) return;
+      heardLink(connection);
+      if (isHeartbeat(data)) { sendHeartbeatAck(connection); return; }
       if (processMigration(data)) return;
       if (typeof data !== 'string') return;
       var control;
@@ -115,7 +236,7 @@
     connection.on('close', function () {
       if (!active()) return;
       delete mesh[id];
-      if (!isHost && !migrating && (!toHost || !toHost.open)) electHost();
+      if (!isHost && !migrating && (!toHost || !toHost.open)) hostLinkLost(id, toHost);
     });
     connection.on('error', function (e) { if (active()) reportError(e); });
   }
@@ -129,6 +250,11 @@
     });
   }
   function handleClientData(id, data) {
+    if (isHeartbeat(data)) {
+      var beat = clients[id];
+      if (beat && beat.open) sendHeartbeatAck(beat);
+      return;
+    }
     if (typeof data === 'string') {
       var control;
       try { control = JSON.parse(data); } catch (_) { control = null; }
@@ -160,17 +286,27 @@
   function acceptClient(connection) {
     var id = connection.peer;
     if (endingSession) { try { connection.close(); } catch (_) {} return; }
-    if (!id || clients[id]) return;
+    if (!id) return;
+    if (clients[id]) {
+      if (clients[id] === connection) return;
+      // A fresh channel from a known peer means the old one starved silently
+      // (a rejoin after a flaky drop). Replace it so the peer is let back in.
+      var stale = clients[id];
+      delete clients[id];
+      try { stale.close(); } catch (_) {}
+    }
     var owner = session, source = peer;
     clients[id] = connection;
+    trackLink(connection);
     function active() { return isCurrent(owner, source) && clients[id] === connection; }
     connection.on('open', function () {
       if (!active()) return;
+      heardLink(connection);
       if (isHost && !migrating) unity('OnPeerConnected', id);
       if (migrating && peer && peer.id === targetPeerId) startMigrationHost();
       broadcastMesh();
     });
-    connection.on('data', function (data) { if (active()) handleClientData(id, data); });
+    connection.on('data', function (data) { if (active()) { heardLink(connection); handleClientData(id, data); } });
     connection.on('close', function () {
       if (!active()) return;
       delete clients[id];
@@ -191,9 +327,11 @@
     catch (error) { reportError(error); return; }
     if (!connection) { reportError('PeerJS could not connect to the host.'); return; }
     toHost = connection;
+    trackLink(connection);
     function active() { return isCurrent(owner, source) && toHost === connection; }
     connection.on('open', function () {
       if (!active()) return;
+      heardLink(connection);
       if (!migrating) unity('OnPeerConnected', id);
       if (migrating && peer.id !== targetPeerId) {
         defer(function () { if (active()) unity('OnPeerMigration', room + '|' + targetPeerId); }, 150);
@@ -201,6 +339,8 @@
     });
     connection.on('data', function (data) {
       if (!active()) return;
+      heardLink(connection);
+      if (isHeartbeat(data)) { sendHeartbeatAck(connection); return; }
       // Only the current host channel can intentionally end this session.
       if (typeof data === 'string') {
         var terminal;
@@ -212,7 +352,7 @@
             clientJoined = false;
             clearTimeout(migrationTimer);
             migrationTimer = null;
-            notifyHostDisconnected(id);
+            notifySessionEnded(id);
           }
           return;
         }
@@ -232,10 +372,7 @@
     connection.on('close', function () {
       if (!active()) return;
       toHost = null;
-      if (!isHost && !migrating && !endingSession) {
-        if (!clientJoined) notifyHostDisconnected(id);
-        else electHost();
-      }
+      hostLinkLost(id, connection);
     });
     connection.on('error', function (e) { if (active()) reportError(e); });
   }
@@ -303,12 +440,14 @@
     migrating = false;
     migrationHostId = '';
     migrationStartedAt = Date.now();
+    linkStatusReported = true;
     room = String(code || '').trim();
     targetPeerId = host ? '' : String(targetHost || ('ph-' + room));
     var owner = session, source;
     try { source = new root.Peer(host ? 'ph-' + room : 'pc-' + room + '-' + Math.random().toString(36).slice(2, 10), peerOptions); }
     catch (error) { reportError(error); return; }
     peer = source;
+    scheduleHeartbeat();
     source.on('open', function (id) {
       if (!isCurrent(owner, source)) return;
       unity('OnPeerReady', id);
@@ -359,6 +498,7 @@
     if (migrationMode && peer && migrating) {
       // Preserve peer identity and mesh, but the restarted NGO client still needs approval.
       if (!host) clientJoined = false;
+      scheduleHeartbeat();
       return;
     }
     root.PeerJS_Close();
@@ -424,6 +564,9 @@
     // C# skips this call during an intentional migration restart; explicit close always tears down.
     session++;
     closing = true;
+    if (heartbeatTimer) clearTimeout(heartbeatTimer);
+    heartbeatTimer = null;
+    linkStatusReported = true;
     clientJoined = false;
     pendingEndAcks = Object.create(null);
     clearTimeout(migrationTimer);

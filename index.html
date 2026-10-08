@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spooderheck</title>
+    <title>Spiderheck</title>
     <style>
       html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
       #unity-canvas { display: block; position: fixed; inset: 0; width: 100%; height: 100%; }
@@ -20,13 +20,13 @@
     </script>
     <script src="StreamingAssets/peerjs.min.js"></script>
     <script src="StreamingAssets/peer.js"></script>
-    <script src="Build/e9dadf13d3d2ec49cc33413f986a95cb.js"></script>
+    <script src="Build/WebGL-Release.loader.js"></script>
     <script>
       createUnityInstance(document.querySelector("#unity-canvas"), {
         matchWebGLToCanvasSize: true,
-        dataUrl: "Build/bfa3db72b33c33eccb7de7d6c6c0df62.data",
-        frameworkUrl: "Build/b08aaf6f6597d78e0b34308b799e23d4.js",
-        codeUrl: "Build/edd5f30c0bb9fcdfa63e442c9a79bc15.wasm",
+        dataUrl: "Build/WebGL-Release.data",
+        frameworkUrl: "Build/WebGL-Release.framework.js",
+        codeUrl: "Build/WebGL-Release.wasm",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "Neverjam Studio",
         productName: "SPIDERHECK_DEMO",
