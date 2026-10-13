@@ -20,17 +20,17 @@
     </script>
     <script src="StreamingAssets/peerjs.min.js"></script>
     <script src="StreamingAssets/peer.js"></script>
-    <script src="Build/WebGL-Release.loader.js"></script>
+    <script src="Build/Spiderheck.loader.js"></script>
     <script>
       createUnityInstance(document.querySelector("#unity-canvas"), {
         matchWebGLToCanvasSize: true,
-        dataUrl: "Build/WebGL-Release.data",
-        frameworkUrl: "Build/WebGL-Release.framework.js",
-        codeUrl: "Build/WebGL-Release.wasm",
+        dataUrl: "Build/Spiderheck.data",
+        frameworkUrl: "Build/Spiderheck.framework.js",
+        codeUrl: "Build/Spiderheck.wasm",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "Neverjam Studio",
-        productName: "SPIDERHECK_DEMO",
-        productVersion: " 1.1 Demo of Heck"
+        productName: "SPIDERHECK_PORT",
+        productVersion: "1.0"
       }).then(function (instance) {
         window.unityInstance = instance;
       }).catch(function (error) {

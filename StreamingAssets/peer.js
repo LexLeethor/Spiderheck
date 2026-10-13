@@ -1,6 +1,7 @@
 /* PeerJS bridge for PeerJsTransport. Game data travels over WebRTC data channels. */
 (function (root) {
   'use strict';
+  var reconnectTokens = Object.create(null), savedReconnect = null;
   var peer = null, objectName = 'PeerJsTransport';
   var isHost = false, promoted = false, migrating = false, closing = false;
   var room = '', clients = Object.create(null), mesh = Object.create(null);
@@ -30,6 +31,7 @@
     unity('OnPeerDisconnected', id);
   }
   function notifySessionEnded(id) {
+    savedReconnect = null;
     // A deliberate host end is final: the lobby is gone, so no reconnection offer.
     if (hostDisconnectNotified) return;
     hostDisconnectNotified = true;
@@ -48,7 +50,16 @@
     record.waiting = waiting;
     unity('OnPeerLinkStale', connection.peer + '|' + (waiting ? '1' : '0'));
   }
-  function heardLink(connection) {
+  function heardLink(connection, data) {
+    if (connection === toHost && savedReconnect) savedReconnect.seen = Date.now();
+    if (typeof data === 'string' && connection && connection.__hb) {
+      var ack;
+      try { ack = JSON.parse(data); } catch (_) {}
+      if (ack && ack.type === 'hb-ack' && typeof ack.sentAt === 'number' && ack.sentAt === connection.__hb.lastBeat) {
+        var rtt = Date.now() - ack.sentAt;
+        if (rtt >= 0 && rtt <= RESPONSE_TIMEOUT_MS) unity('OnPeerRtt', connection.peer + '|' + rtt);
+      }
+    }
     if (connection && connection.__hb) {
       connection.__hb.lastHeard = Date.now();
       reportLinkWaiting(connection, false);
@@ -83,10 +94,12 @@
     return !!control && control.type === 'hb';
   }
   function sendHeartbeat(connection) {
-    try { connection.send(JSON.stringify({ type: 'hb' })); } catch (_) {}
+    try { connection.send(JSON.stringify({ type: 'hb', sentAt: connection.__hb.lastBeat })); } catch (_) {}
   }
-  function sendHeartbeatAck(connection) {
-    try { connection.send(JSON.stringify({ type: 'hb-ack' })); } catch (_) {}
+  function sendHeartbeatAck(connection, data) {
+    var beat;
+    try { beat = JSON.parse(data); } catch (_) { return; }
+    try { connection.send(JSON.stringify({ type: 'hb-ack', sentAt: beat.sentAt })); } catch (_) {}
   }
   function heartbeatTick() {
     heartbeatTimer = null;
@@ -118,7 +131,9 @@
     } else if (role === 'mesh') {
       if (mesh[id] === connection) delete mesh[id];
       try { connection.close(); } catch (_) {}
-      if (!isHost && !migrating && (!toHost || !toHost.open)) hostLinkLost(id, toHost);
+      // Report the host link's id, not the mesh id: Unity matches the reported
+      // peer against the host it joined. A mesh id would look like a stranger.
+      if (!isHost && !migrating && (!toHost || !toHost.open)) hostLinkLost(targetPeerId || id, toHost);
     } else {
       if (toHost === connection) toHost = null;
       try { connection.close(); } catch (_) {}
@@ -127,12 +142,18 @@
   }
   function hostLinkLost(hostId, connection) {
     if (isHost || migrating || endingSession || hostDisconnectNotified) return;
-    var record = connection && connection.__hb;
-    // A channel that closes while traffic still flowed means the host ended the
-    // link (or is gone): keep the original host election. A starving link is
-    // more likely this machine's flaky network, so drop the session cleanly and
-    // let Unity keep retrying the same lobby until it is accepted again.
-    if (clientJoined && record && Date.now() - record.lastHeard <= LINK_STALL_MS) { electHost(); return; }
+    // A healthy sibling distinguishes host silence from total local isolation.
+    // Without a reachable sibling retain the same-lobby reconnect fallback: a
+    // clean close or replayed heartbeats must never promote a lone client into a
+    // competing host. Only a reachable sibling earns an election.
+    var reachableSibling = Object.keys(mesh).some(function (id) { return !linkSilent(mesh[id]); });
+    if (clientJoined && reachableSibling) {
+      electHost(); return;
+    }
+    // This session is over for us: an election scheduled before the last sibling
+    // died must not fire afterwards and tell the remaining peers to migrate.
+    clearTimeout(migrationTimer);
+    migrationTimer = null;
     if (clientJoined) {
       hostDisconnectNotified = true;
       unity('OnPeerConnectionLost', hostId);
@@ -159,6 +180,12 @@
     return btoa(binary);
   }
   function sendPacket(connection, encoded) {
+    // Reliable NGO messages cannot be dropped selectively without protocol knowledge.
+    // Close an overloaded link instead of allowing an unbounded browser send queue.
+    if (connection.dataChannel && connection.dataChannel.bufferedAmount > 1048576) {
+      reportError('PeerJS send backlog exceeded 1 MiB; closing congested link.');
+      connection.close(); return;
+    }
     var binary = atob(encoded || ''), bytes = new Uint8Array(binary.length);
     for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     connection.send(bytes.buffer);
@@ -218,8 +245,8 @@
     });
     connection.on('data', function (data) {
       if (!active()) return;
-      heardLink(connection);
-      if (isHeartbeat(data)) { sendHeartbeatAck(connection); return; }
+      heardLink(connection, data);
+      if (isHeartbeat(data)) { sendHeartbeatAck(connection, data); return; }
       if (processMigration(data)) return;
       if (typeof data !== 'string') return;
       var control;
@@ -236,7 +263,8 @@
     connection.on('close', function () {
       if (!active()) return;
       delete mesh[id];
-      if (!isHost && !migrating && (!toHost || !toHost.open)) hostLinkLost(id, toHost);
+      // Same as dropSilentLink: name the host, not the mesh link that died last.
+      if (!isHost && !migrating && (!toHost || !toHost.open)) hostLinkLost(targetPeerId || id, toHost);
     });
     connection.on('error', function (e) { if (active()) reportError(e); });
   }
@@ -252,7 +280,7 @@
   function handleClientData(id, data) {
     if (isHeartbeat(data)) {
       var beat = clients[id];
-      if (beat && beat.open) sendHeartbeatAck(beat);
+      if (beat && beat.open) sendHeartbeatAck(beat, data);
       return;
     }
     if (typeof data === 'string') {
@@ -302,13 +330,34 @@
     connection.on('open', function () {
       if (!active()) return;
       heardLink(connection);
-      if (isHost && !migrating) unity('OnPeerConnected', id);
+      if (isHost && !migrating) {
+        var now = Date.now();
+        Object.keys(reconnectTokens).forEach(function (key) {
+          if (now - reconnectTokens[key].seen > 180000 && !clients[reconnectTokens[key].peer]) delete reconnectTokens[key];
+        });
+        var supplied = connection.metadata && connection.metadata.reconnectToken;
+        var record = typeof supplied === 'string' && reconnectTokens[supplied];
+        if (record && record.peer !== id && clients[record.peer]) { connection.close(); return; }
+        if (record) unity('OnPeerResume', id + '|' + record.peer);
+        var token = record ? supplied : '';
+        if (!token && root.crypto && root.crypto.getRandomValues && Object.keys(reconnectTokens).length < 128) {
+          var random = new Uint32Array(4); root.crypto.getRandomValues(random);
+          token = Array.prototype.map.call(random, function (n) { return ('00000000' + n.toString(16)).slice(-8); }).join('');
+        }
+        if (token) {
+          reconnectTokens[token] = { peer: id, seen: now };
+          connection.__reconnectToken = token;
+          connection.send(JSON.stringify({ type: 'reconnect-token', token: token }));
+        }
+        unity('OnPeerConnected', id);
+      }
       if (migrating && peer && peer.id === targetPeerId) startMigrationHost();
       broadcastMesh();
     });
-    connection.on('data', function (data) { if (active()) { heardLink(connection); handleClientData(id, data); } });
+    connection.on('data', function (data) { if (active()) { heardLink(connection, data); handleClientData(id, data); } });
     connection.on('close', function () {
       if (!active()) return;
+      if (connection.__reconnectToken && reconnectTokens[connection.__reconnectToken]) reconnectTokens[connection.__reconnectToken].seen = Date.now();
       delete clients[id];
       if (isHost && !migrating) unity('OnPeerDisconnected', id);
       broadcastMesh();
@@ -323,7 +372,7 @@
     }
     if (toHost) { var previous = toHost; toHost = null; try { previous.close(); } catch (_) {} }
     var owner = session, source = peer, connection;
-    try { connection = peer.connect(id, { reliable: true, serialization: 'raw' }); }
+    try { connection = peer.connect(id, { reliable: true, serialization: 'raw', metadata: { reconnectToken: savedReconnect && savedReconnect.host === id && Date.now() - savedReconnect.seen < 180000 ? savedReconnect.token : '' } }); }
     catch (error) { reportError(error); return; }
     if (!connection) { reportError('PeerJS could not connect to the host.'); return; }
     toHost = connection;
@@ -339,8 +388,15 @@
     });
     connection.on('data', function (data) {
       if (!active()) return;
-      heardLink(connection);
-      if (isHeartbeat(data)) { sendHeartbeatAck(connection); return; }
+      heardLink(connection, data);
+      if (isHeartbeat(data)) { sendHeartbeatAck(connection, data); return; }
+      if (typeof data === 'string') {
+        var credential;
+        try { credential = JSON.parse(data); } catch (_) {}
+        if (credential && credential.type === 'reconnect-token' && /^[0-9a-f]{32}$/.test(credential.token)) {
+          savedReconnect = { host: id, token: credential.token, seen: Date.now() }; return;
+        }
+      }
       // Only the current host channel can intentionally end this session.
       if (typeof data === 'string') {
         var terminal;
@@ -378,7 +434,7 @@
   }
   function electHost() {
     if (!clientJoined || endingSession || migrationTimer || migrating || !peer || peer.destroyed || closing) return;
-    var candidates = [peer.id].concat(Object.keys(mesh)).filter(function (id, index, list) {
+    var candidates = [peer.id].concat(Object.keys(mesh).filter(function (id) { return !linkSilent(mesh[id]); })).filter(function (id, index, list) {
       return !!id && list.indexOf(id) === index;
     }).sort();
     if (!candidates.length) {
@@ -390,7 +446,7 @@
     migrationTimer = defer(function () {
       migrationTimer = null;
       if (!peer || peer.destroyed || closing) return;
-      var currentCandidates = [peer.id].concat(Object.keys(mesh)).sort();
+      var currentCandidates = [peer.id].concat(Object.keys(mesh).filter(function (id) { return !linkSilent(mesh[id]); })).sort();
       elected = currentCandidates[0];
       targetPeerId = elected;
       migrating = true;
@@ -505,10 +561,13 @@
     closing = false;
     endingSession = false;
     libraryWaitStartedAt = Date.now();
+    if (host) reconnectTokens = Object.create(null);
+    if (host || (savedReconnect && savedReconnect.host !== (targetHost || ('ph-' + code)))) savedReconnect = null;
     beginPeer(!!host, code, targetHost);
   };
   root.PeerJS_ConfirmClientJoin = function () { if (peer && !closing && !endingSession) clientJoined = true; };
   root.PeerJS_EndSession = function () {
+    reconnectTokens = Object.create(null); savedReconnect = null;
     if (!peer || closing || endingSession) return;
     endingSession = true;
     clientJoined = false;
@@ -561,6 +620,7 @@
     if (promoted) startMigrationHost();
   };
   root.PeerJS_Close = function () {
+    if (savedReconnect && toHost && toHost.open) savedReconnect.seen = Date.now();
     // C# skips this call during an intentional migration restart; explicit close always tears down.
     session++;
     closing = true;
