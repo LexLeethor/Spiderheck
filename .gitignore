@@ -1,0 +1,9 @@
+node_modules
+.wrangler
+.freebuff
+.assetsignore
+wrangler.jsonc
+src
+scripts
+package.json
+package-lock.json

@@ -25,6 +25,7 @@
   }
   function isCurrent(owner, source) { return owner === session && !closing && peer === source; }
   function reportError(error) { unity('OnPeerError', error && error.message ? error.message : error); }
+  function logDisconnectFailure(stage, id, error) { if (root.console) console.warn('PeerJS disconnect failed (' + stage + ')' + (id ? ' for ' + id : '') + ': ' + (error && error.message ? error.message : String(error))); }
   function notifyHostDisconnected(id) {
     if (hostDisconnectNotified) return;
     hostDisconnectNotified = true;
@@ -123,20 +124,20 @@
     // Remove the map entry first so the close event cannot double-report.
     if (role === 'client') {
       if (clients[id] === connection) delete clients[id];
-      try { connection.close(); } catch (_) {}
+      try { connection.close(); } catch (error) { logDisconnectFailure('silent client close', id, error); }
       // Forgetting the client here lets NGO despawn its ghost spider. The same
       // peer is welcome back: acceptClient takes its fresh channel in again.
       unity('OnPeerDisconnected', id);
       broadcastMesh();
     } else if (role === 'mesh') {
       if (mesh[id] === connection) delete mesh[id];
-      try { connection.close(); } catch (_) {}
+      try { connection.close(); } catch (error) { logDisconnectFailure('silent mesh close', id, error); }
       // Report the host link's id, not the mesh id: Unity matches the reported
       // peer against the host it joined. A mesh id would look like a stranger.
       if (!isHost && !migrating && (!toHost || !toHost.open)) hostLinkLost(targetPeerId || id, toHost);
     } else {
       if (toHost === connection) toHost = null;
-      try { connection.close(); } catch (_) {}
+      try { connection.close(); } catch (error) { logDisconnectFailure('silent host close', id, error); }
       hostLinkLost(id, connection);
     }
   }
@@ -171,6 +172,7 @@
     if (root.PEERJS_PATH) result.path = root.PEERJS_PATH;
     if (root.PEERJS_KEY) result.key = root.PEERJS_KEY;
     if (root.PEERJS_SECURE !== undefined) result.secure = !!root.PEERJS_SECURE;
+    result.config = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302', 'stun:stun3.l.google.com:19302', 'stun:stun4.l.google.com:19302'] }, { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }], sdpSemantics: 'unified-plan' };
     return result;
   }
   function encodeBase64(data) {
@@ -221,7 +223,7 @@
     promoted = !!peer && peer.id === control.elected;
     isHost = promoted;
     if (!promoted && toHost) {
-      try { toHost.close(); } catch (_) {}
+      try { toHost.close(); } catch (error) { logDisconnectFailure('migration host close', targetPeerId, error); }
       toHost = null;
     }
     unity('OnPeerMigration', control.host + '|' + control.elected);
@@ -255,7 +257,7 @@
         room = String(control.room).toUpperCase();
         migrationRoomReady = true;
         if (!promoted) {
-          if (toHost) { try { toHost.close(); } catch (_) {} toHost = null; }
+          if (toHost) { try { toHost.close(); } catch (error) { logDisconnectFailure('migration host close', targetPeerId, error); } toHost = null; }
           connectHost(targetPeerId);
         }
       }
@@ -296,7 +298,7 @@
         room = String(control.room).toUpperCase();
         migrationRoomReady = true;
         if (!promoted && targetPeerId && peer && peer.id !== targetPeerId) {
-          if (toHost) { try { toHost.close(); } catch (_) {} toHost = null; }
+          if (toHost) { try { toHost.close(); } catch (error) { logDisconnectFailure('migration host close', targetPeerId, error); } toHost = null; }
           connectHost(targetPeerId);
           defer(function () { if (peer) unity('OnPeerMigration', room + '|' + targetPeerId); }, 150);
         } else if (promoted) startMigrationHost();
@@ -321,7 +323,7 @@
       // (a rejoin after a flaky drop). Replace it so the peer is let back in.
       var stale = clients[id];
       delete clients[id];
-      try { stale.close(); } catch (_) {}
+      try { stale.close(); } catch (error) { logDisconnectFailure('stale client close', id, error); }
     }
     var owner = session, source = peer;
     clients[id] = connection;
@@ -370,7 +372,7 @@
       if (toHost.open && !migrating) unity('OnPeerConnected', id);
       return;
     }
-    if (toHost) { var previous = toHost; toHost = null; try { previous.close(); } catch (_) {} }
+    if (toHost) { var previous = toHost; toHost = null; try { previous.close(); } catch (error) { logDisconnectFailure('previous host close', previous.peer, error); } }
     var owner = session, source = peer, connection;
     try { connection = peer.connect(id, { reliable: true, serialization: 'raw', metadata: { reconnectToken: savedReconnect && savedReconnect.host === id && Date.now() - savedReconnect.seen < 180000 ? savedReconnect.token : '' } }); }
     catch (error) { reportError(error); return; }
@@ -580,7 +582,7 @@
       var connection = clients[id];
       if (!connection || !connection.open) return;
       pendingEndAcks[id] = true;
-      try { connection.send(message); } catch (_) { delete pendingEndAcks[id]; }
+      try { connection.send(message); } catch (error) { delete pendingEndAcks[id]; logDisconnectFailure('session-ended send', id, error); }
     });
   };
   root.PeerJS_SessionEndPending = function () {
@@ -596,7 +598,10 @@
       } else if (toHost && toHost.open) sendPacket(toHost, encoded);
     } catch (error) { reportError(error); }
   };
-  root.PeerJS_Disconnect = function (id) { if (clients[id]) clients[id].close(); };
+  root.PeerJS_Disconnect = function (id) {
+    if (!clients[id]) { logDisconnectFailure('no link for disconnect', id, 'peer is not connected to this host'); return; }
+    try { clients[id].close(); } catch (error) { logDisconnectFailure('disconnect client', id, error); }
+  };
   root.PeerJS_StartServer = function () {
     if (endingSession || !peer || peer.destroyed || !promoted) return;
     isHost = true;
@@ -631,12 +636,12 @@
     pendingEndAcks = Object.create(null);
     clearTimeout(migrationTimer);
     migrationTimer = null;
-    Object.keys(clients).forEach(function (id) { try { clients[id].close(); } catch (_) {} });
-    Object.keys(mesh).forEach(function (id) { try { mesh[id].close(); } catch (_) {} });
+    Object.keys(clients).forEach(function (id) { try { clients[id].close(); } catch (error) { logDisconnectFailure('close client', id, error); } });
+    Object.keys(mesh).forEach(function (id) { try { mesh[id].close(); } catch (error) { logDisconnectFailure('close mesh', id, error); } });
     clients = Object.create(null);
     mesh = Object.create(null);
-    if (toHost) { try { toHost.close(); } catch (_) {} toHost = null; }
-    if (peer) { try { peer.destroy(); } catch (_) {} peer = null; }
+    if (toHost) { try { toHost.close(); } catch (error) { logDisconnectFailure('close host', toHost.peer, error); } toHost = null; }
+    if (peer) { try { peer.destroy(); } catch (error) { logDisconnectFailure('destroy peer', peer.id, error); } peer = null; }
     isHost = false;
     promoted = false;
     migrating = false;
